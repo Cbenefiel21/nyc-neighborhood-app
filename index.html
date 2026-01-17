@@ -1,7 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NYC Neighborhood Explorer</title>
   <style>
     body {
@@ -66,7 +67,7 @@
   <div class="container">
     <h1>Manhattan Neighborhood Picker</h1>
 
-    <div id="neighborhood">Tap Pick Next</div>
+    <div id="neighborhood">Tap "Pick Next"</div>
 
     <button onclick="pickNeighborhood()">Pick Next Neighborhood</button>
     <button class="secondary" onclick="resetList()">Reset Visited List</button>
@@ -77,20 +78,21 @@
 
 <script>
 const allNeighborhoods = [
-  "Meatpacking District",
-  "Chelsea",
-  "Greenwich Village",
-  "West Village",
-  "SoHo",
-  "NoHo",
-  "Tribeca",
-  "Financial District",
   "Battery Park City",
+  "Financial District",
+  "Tribeca",
+  "Chinatown",
   "Lower East Side",
   "East Village",
   "Alphabet City",
+  "NoHo",
+  "Greenwich Village",
+  "West Village",
+  "SoHo",
+  "Nolita",
+  "Little Italy",
+  "Flatiron District",
   "Gramercy",
-  "Flatiron",
   "Union Square",
   "Murray Hill",
   "Kips Bay",
@@ -98,6 +100,8 @@ const allNeighborhoods = [
   "Midtown East",
   "Midtown West",
   "Hell's Kitchen",
+  "Chelsea",
+  "Meatpacking District",
   "Upper East Side",
   "Upper West Side",
   "Harlem",
@@ -141,7 +145,7 @@ function resetList() {
   if (confirm("Reset all visited neighborhoods?")) {
     visited = [];
     saveVisited();
-    document.getElementById("neighborhood").innerText = "Tap “Pick Next”";
+    document.getElementById("neighborhood").innerText = 'Tap "Pick Next"';
     updateRemainingText();
   }
 }
