@@ -29,9 +29,30 @@ button {
   margin: 12px;
   cursor: pointer;
 }
-button.secondary {
-  background-color: #6b7280;
+button.secondary { background-color: #6b7280; }
+
+/* Settings modal */
+#settingsModal {
+  display: none;
+  position: fixed;
+  z-index: 10;
+  left: 0; top: 0;
+  width: 100%; height: 100%;
+  background: rgba(0,0,0,0.8);
+  overflow: auto;
 }
+#settingsContent {
+  background: #1e1e1e;
+  margin: 50px auto;
+  padding: 20px;
+  border-radius: 12px;
+  width: 80%;
+  max-width: 400px;
+  color: #fff;
+}
+#settingsContent h2 { margin-top: 0; }
+#settingsContent label { display: block; margin: 4px 0; }
+#settingsContent button { margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -41,6 +62,17 @@ button.secondary {
 <div id="selected" style="margin-top: 20px; font-size: 20px;">Tap "Spin"!</div>
 <button onclick="spinWheel()">Spin</button>
 <button class="secondary" onclick="resetList()">Reset</button>
+<button class="secondary" onclick="openSettings()">Settings</button>
+
+<!-- Settings Modal -->
+<div id="settingsModal">
+  <div id="settingsContent">
+    <h2>Visited Neighborhoods</h2>
+    <div id="settingsList" style="max-height:300px; overflow:auto;"></div>
+    <button onclick="saveSettings()">Save</button>
+    <button onclick="closeSettings()">Cancel</button>
+  </div>
+</div>
 
 <script>
 // Manhattan neighborhoods
@@ -55,6 +87,7 @@ const allNeighborhoods = [
 "Hamilton Heights","Manhattanville","Washington Heights","Inwood"
 ];
 
+// Visited list from localStorage
 let visited = JSON.parse(localStorage.getItem("visitedNeighborhoods")) || [];
 
 const canvas = document.getElementById('wheel');
@@ -68,34 +101,33 @@ const wheelRadius = 180;
 let rotation = 0;
 let spinning = false;
 
-// Draw wheel with back-to-front sorting
+// Draw wheel
 function drawWheel(highlightFront=false) {
   ctx.clearRect(0,0,width,height);
   const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
 
-  // Compute positions with depth
-  const wedges = allNeighborhoods.map((n,i) => {
+  const wedges = allNeighborhoods.map((n,i)=>{
     const angle = (i*sliceAngle + rotation) % (2*Math.PI);
     const y = Math.sin(angle)*wheelRadius;
-    const scale = 0.5 + 0.5*Math.cos(angle); // front bigger
-    const alpha = 0.3 + 0.7*Math.cos(angle); // back fades
-    return {name: n, index:i, angle, y, scale, alpha};
+    const scale = 0.5 + 0.5*Math.cos(angle);
+    const alpha = 0.3 + 0.7*Math.cos(angle);
+    return {name:n, index:i, angle, y, scale, alpha};
   });
 
-  // Sort back-to-front
   wedges.sort((a,b)=>a.scale-b.scale);
 
-  wedges.forEach(w => {
+  wedges.forEach(w=>{
     if (w.alpha<0.05) return;
+
     ctx.save();
     ctx.translate(centerX, centerY + w.y);
     ctx.scale(w.scale,w.scale);
 
-    // Fill color
+    // --- Updated fill color logic ---
     let isFront = highlightFront && Math.abs(Math.sin(w.angle))<0.01;
     let fill;
-    if (visited.includes(w.name) && !isFront) fill = '#555';
-    else if (isFront) fill = '#ffeb3b';
+    if (visited.includes(w.name) && !isFront) fill = '#555'; // visited gray
+    else if (isFront) fill = '#ffeb3b'; // selected gold
     else fill = (w.index%2===0 ? '#1d4ed8':'#2563eb');
 
     ctx.fillStyle = fill;
@@ -104,23 +136,21 @@ function drawWheel(highlightFront=false) {
     ctx.roundRect(-150,-20,300,40,8);
     ctx.fill();
 
-    // Text
     ctx.fillStyle='#fff';
     ctx.font="14px sans-serif";
     ctx.textAlign="center";
     ctx.textBaseline="middle";
     ctx.fillText(w.name,0,0);
-
     ctx.restore();
   });
 
   ctx.globalAlpha = 1;
-  // Side pointer (middle-right), flipped toward wheel
+  // Side pointer (flipped toward wheel)
   ctx.fillStyle="#ffeb3b";
   ctx.beginPath();
   ctx.moveTo(width-10, centerY);
-  ctx.lineTo(width+10, centerY-10);
-  ctx.lineTo(width+10, centerY+10);
+  ctx.lineTo(width-30, centerY-10);
+  ctx.lineTo(width-30, centerY+10);
   ctx.closePath();
   ctx.fill();
 }
@@ -131,7 +161,7 @@ function spinWheel(){
   spinning = true;
   document.getElementById("selected").innerText = "Spinning...";
 
-  const spins = Math.random()*5+5; // full rotations
+  const spins = Math.random()*5+5;
   const totalRotation = 2*Math.PI*spins + Math.random()*2*Math.PI; 
   const duration = 4000;
   let start=null;
@@ -144,14 +174,14 @@ function spinWheel(){
     drawWheel(false);
     if(t<1) requestAnimationFrame(animate);
     else {
-      // Pick the front wedge as the selected neighborhood
+      // Pick front wedge after spin
       const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
       let frontIndex = Math.round((-rotation)/sliceAngle) % allNeighborhoods.length;
       if(frontIndex<0) frontIndex+=allNeighborhoods.length;
       const chosen = allNeighborhoods[frontIndex];
       visited.push(chosen);
       localStorage.setItem("visitedNeighborhoods",JSON.stringify(visited));
-      drawWheel(true); // highlight
+      drawWheel(true); // highlight selected
       document.getElementById("selected").innerText = `Next: ${chosen}`;
       spinning=false;
     }
@@ -168,6 +198,38 @@ function resetList(){
     document.getElementById("selected").innerText='Tap "Spin"!';
     drawWheel();
   }
+}
+
+// --- Settings functionality ---
+function openSettings(){
+  const listDiv = document.getElementById('settingsList');
+  listDiv.innerHTML="";
+  allNeighborhoods.forEach(n=>{
+    const id = 'chk_'+n.replace(/\s/g,'_');
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type='checkbox';
+    cb.id=id;
+    cb.checked = visited.includes(n);
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(" "+n));
+    listDiv.appendChild(lbl);
+  });
+  document.getElementById('settingsModal').style.display='block';
+}
+
+function closeSettings(){
+  document.getElementById('settingsModal').style.display='none';
+}
+
+function saveSettings(){
+  visited = allNeighborhoods.filter(n=>{
+    const id='chk_'+n.replace(/\s/g,'_');
+    return document.getElementById(id).checked;
+  });
+  localStorage.setItem("visitedNeighborhoods",JSON.stringify(visited));
+  drawWheel();
+  closeSettings();
 }
 
 // Polyfill for roundRect
@@ -191,3 +253,4 @@ drawWheel();
 
 </body>
 </html>
+
