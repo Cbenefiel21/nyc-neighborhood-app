@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NYC Explorer Arcade Wheel</title>
+<title>NYC Explorer Vertical Wheel</title>
 <style>
 body {
   background-color: #121212;
@@ -17,7 +17,7 @@ h1 { font-size: 24px; }
 canvas {
   margin-top: 20px;
   background-color: #1e1e1e;
-  border-radius: 50%;
+  border-radius: 12px;
 }
 button {
   background-color: #1d4ed8;
@@ -37,13 +37,13 @@ button.secondary {
 <body>
 
 <h1>NYC Explorer Arcade Wheel</h1>
-<canvas id="wheel" width="400" height="400"></canvas>
+<canvas id="wheel" width="400" height="500"></canvas>
 <div id="selected" style="margin-top: 20px; font-size: 20px;">Tap "Spin"!</div>
 <button onclick="spinWheel()">Spin</button>
 <button class="secondary" onclick="resetList()">Reset</button>
 
 <script>
-// Manhattan neighborhoods
+// 39 Manhattan neighborhoods
 const allNeighborhoods = [
 "Battery Park","Battery Park City","Financial District","South Street Seaport","Tribeca",
 "Civic Center","Chinatown","Little Italy","Lower East Side","Two Bridges",
@@ -55,69 +55,75 @@ const allNeighborhoods = [
 "Hamilton Heights","Manhattanville","Washington Heights","Inwood"
 ];
 
-// Track visited
+// Visited neighborhoods
 let visited = JSON.parse(localStorage.getItem("visitedNeighborhoods")) || [];
 
 // Canvas setup
 const canvas = document.getElementById('wheel');
 const ctx = canvas.getContext('2d');
-const centerX = canvas.width / 2;
-const centerY = canvas.height / 2;
-const radius = 180;
-let rotation = 0;
+const width = canvas.width;
+const height = canvas.height;
+const centerX = width/2;
+const centerY = height/2;
+const wheelRadius = 180;
 
-// Draw wheel with highlight on wedge under pointer
-function drawWheel(targetIndex = null) {
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  const sliceAngle = (2 * Math.PI) / allNeighborhoods.length;
+let rotation = 0; // current rotation angle (radians)
+
+// Draw vertical cylindrical wheel
+function drawWheel(highlightIndex = null) {
+  ctx.clearRect(0,0,width,height);
+  const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
 
   allNeighborhoods.forEach((n, i) => {
-    const start = sliceAngle * i + rotation;
-    const end = start + sliceAngle;
+    // Compute angle of wedge relative to top pointer
+    let angle = (i*sliceAngle + rotation) % (2*Math.PI);
 
-    // Highlight if this is the target wedge
-    let isHighlight = targetIndex !== null && i === targetIndex;
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.ellipse(centerX, centerY, radius, radius*0.6, 0, start, end);
-    ctx.closePath();
+    // Map to vertical position
+    const y = Math.sin(angle) * wheelRadius;
+    const scale = 0.5 + 0.5 * Math.cos(angle); // front wedge bigger, back smaller
+    const alpha = 0.3 + 0.7 * Math.cos(angle); // fade back wedges
 
-    if (visited.includes(n)) {
-      ctx.fillStyle = '#555';
-    } else if (isHighlight) {
-      ctx.fillStyle = '#ffeb3b'; // glow highlight
-      ctx.shadowColor = '#ffff99';
-      ctx.shadowBlur = 20;
-    } else {
-      ctx.fillStyle = (i % 2 === 0 ? '#1d4ed8' : '#2563eb');
-      ctx.shadowBlur = 0;
+    // Only draw front-facing wedges (alpha > 0.1)
+    if (alpha > 0.05) {
+      ctx.save();
+      ctx.translate(centerX, centerY + y);
+      ctx.scale(scale, scale);
+
+      // Determine fill color
+      let isHighlight = highlightIndex !== null && i === highlightIndex;
+      let fill;
+      if (visited.includes(n)) fill = '#555';
+      else if (isHighlight) fill = '#ffeb3b';
+      else fill = (i % 2 === 0 ? '#1d4ed8' : '#2563eb');
+
+      ctx.fillStyle = fill;
+      ctx.globalAlpha = alpha;
+      ctx.beginPath();
+      ctx.roundRect(-150, -20, 300, 40, 8);
+      ctx.fill();
+
+      // Text
+      ctx.fillStyle = '#fff';
+      ctx.font = "14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(n, 0, 0);
+      ctx.restore();
     }
-    ctx.fill();
-
-    // Draw text
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    const angle = start + sliceAngle/2;
-    ctx.rotate(angle);
-    ctx.textAlign = "right";
-    ctx.fillStyle = "#fff";
-    ctx.font = "10px sans-serif";
-    ctx.fillText(n, radius - 10, 5);
-    ctx.restore();
   });
 
-  // Draw fixed top pointer (arrow)
-  ctx.shadowBlur = 0;
+  // Draw fixed top pointer
+  ctx.globalAlpha = 1;
   ctx.fillStyle = "#ffeb3b";
   ctx.beginPath();
-  ctx.moveTo(centerX, centerY - radius*0.6 - 10);
-  ctx.lineTo(centerX - 10, centerY - radius*0.6 + 10);
-  ctx.lineTo(centerX + 10, centerY - radius*0.6 + 10);
+  ctx.moveTo(centerX, centerY - wheelRadius - 20);
+  ctx.lineTo(centerX - 15, centerY - wheelRadius + 10);
+  ctx.lineTo(centerX + 15, centerY - wheelRadius + 10);
   ctx.closePath();
   ctx.fill();
 }
 
-// Spin logic with smooth deceleration
+// Smooth spin with deceleration
 function spinWheel() {
   const remaining = allNeighborhoods.filter(n => !visited.includes(n));
   if (remaining.length === 0) {
@@ -125,11 +131,11 @@ function spinWheel() {
     return;
   }
 
-  const sliceAngle = (2 * Math.PI) / allNeighborhoods.length;
+  const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
   const pickedIndex = Math.floor(Math.random() * remaining.length);
 
-  // Calculate rotation so the target wedge lands under pointer
-  const spins = Math.random() * 5 + 5; // 5-10 full spins
+  // Compute target rotation so picked wedge aligns under top pointer
+  const spins = Math.random() * 5 + 5; // random full spins
   const targetRotation = 2*Math.PI*spins - pickedIndex*sliceAngle;
 
   const duration = 4000; // 4 seconds
@@ -138,10 +144,12 @@ function spinWheel() {
   function animate(timestamp) {
     if (!start) start = timestamp;
     const elapsed = timestamp - start;
-    const t = Math.min(elapsed / duration, 1);
-    // Smooth deceleration (fast at start, slow at end)
+    const t = Math.min(elapsed/duration, 1);
+
     rotation = targetRotation * easeOutQuart(t);
-    drawWheel(pickedIndex); // highlight target wedge
+
+    drawWheel(pickedIndex);
+
     if (t < 1) {
       requestAnimationFrame(animate);
     } else {
@@ -155,10 +163,8 @@ function spinWheel() {
   requestAnimationFrame(animate);
 }
 
-// Quartic ease-out for smooth deceleration
-function easeOutQuart(t) {
-  return 1 - Math.pow(1 - t, 4);
-}
+// Quartic easing for smooth deceleration
+function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
 
 function resetList() {
   if (confirm("Reset visited neighborhoods?")) {
@@ -169,9 +175,26 @@ function resetList() {
   }
 }
 
+// Polyfill for rounded rect (for older browsers)
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    this.beginPath();
+    this.moveTo(x+r, y);
+    this.arcTo(x+w, y, x+w, y+h, r);
+    this.arcTo(x+w, y+h, x, y+h, r);
+    this.arcTo(x, y+h, x, y, r);
+    this.arcTo(x, y, x+w, y, r);
+    this.closePath();
+    return this;
+  }
+}
+
 // Initial draw
 drawWheel();
 </script>
 
 </body>
 </html>
+
