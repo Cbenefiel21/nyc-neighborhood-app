@@ -87,8 +87,8 @@ const allNeighborhoods = [
 "Hamilton Heights","Manhattanville","Washington Heights","Inwood"
 ];
 
-// Visited list from localStorage
 let visited = JSON.parse(localStorage.getItem("visitedNeighborhoods")) || [];
+let lastSelectedIndex = null; // track current front wedge
 
 const canvas = document.getElementById('wheel');
 const ctx = canvas.getContext('2d');
@@ -124,10 +124,10 @@ function drawWheel(highlightFront=false) {
     ctx.scale(w.scale,w.scale);
 
     // --- Updated fill color logic ---
-    let isFront = highlightFront && Math.abs(Math.sin(w.angle))<0.01;
+    let isFront = lastSelectedIndex === w.index;
     let fill;
-    if (visited.includes(w.name) && !isFront) fill = '#555'; // visited gray
-    else if (isFront) fill = '#ffeb3b'; // selected gold
+    if (visited.includes(w.name) && !isFront) fill = '#555'; // previously visited = gray
+    else if (isFront) fill = '#ffeb3b'; // just-spun = gold
     else fill = (w.index%2===0 ? '#1d4ed8':'#2563eb');
 
     ctx.fillStyle = fill;
@@ -145,12 +145,12 @@ function drawWheel(highlightFront=false) {
   });
 
   ctx.globalAlpha = 1;
-  // Side pointer (flipped toward wheel)
+  // Side pointer (flipped back 180°, points away from wheel)
   ctx.fillStyle="#ffeb3b";
   ctx.beginPath();
-  ctx.moveTo(width-10, centerY);
-  ctx.lineTo(width-30, centerY-10);
-  ctx.lineTo(width-30, centerY+10);
+  ctx.moveTo(width-30, centerY);
+  ctx.lineTo(width-10, centerY-10);
+  ctx.lineTo(width-10, centerY+10);
   ctx.closePath();
   ctx.fill();
 }
@@ -178,8 +178,9 @@ function spinWheel(){
       const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
       let frontIndex = Math.round((-rotation)/sliceAngle) % allNeighborhoods.length;
       if(frontIndex<0) frontIndex+=allNeighborhoods.length;
+      lastSelectedIndex = frontIndex;
       const chosen = allNeighborhoods[frontIndex];
-      visited.push(chosen);
+      if(!visited.includes(chosen)) visited.push(chosen);
       localStorage.setItem("visitedNeighborhoods",JSON.stringify(visited));
       drawWheel(true); // highlight selected
       document.getElementById("selected").innerText = `Next: ${chosen}`;
@@ -194,6 +195,7 @@ function easeOutQuart(t){ return 1-Math.pow(1-t,4); }
 function resetList(){
   if(confirm("Reset visited neighborhoods?")){
     visited=[];
+    lastSelectedIndex=null;
     localStorage.setItem("visitedNeighborhoods",JSON.stringify(visited));
     document.getElementById("selected").innerText='Tap "Spin"!';
     drawWheel();
@@ -253,4 +255,3 @@ drawWheel();
 
 </body>
 </html>
-
