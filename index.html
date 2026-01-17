@@ -94,7 +94,7 @@ function drawWheel(highlightFront=false) {
     // Fill color
     let isFront = highlightFront && Math.abs(Math.sin(w.angle))<0.01;
     let fill;
-    if (visited.includes(w.name)) fill = '#555';
+    if (visited.includes(w.name) && !isFront) fill = '#555';
     else if (isFront) fill = '#ffeb3b';
     else fill = (w.index%2===0 ? '#1d4ed8':'#2563eb');
 
