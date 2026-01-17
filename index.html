@@ -3,58 +3,56 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NYC Explorer</title>
+<title>NYC Explorer Arcade Wheel</title>
 <style>
-  body {
-    background-color: #121212;
-    color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    text-align: center;
-    margin: 0;
-    padding: 20px;
-  }
-  h1 {
-    font-size: 24px;
-  }
-  canvas {
-    margin-top: 20px;
-    background-color: #1e1e1e;
-    border-radius: 50%;
-  }
-  button {
-    background-color: #1d4ed8;
-    color: white;
-    border: none;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-size: 16px;
-    margin: 12px;
-    cursor: pointer;
-  }
-  button.secondary {
-    background-color: #6b7280;
-  }
+body {
+  background-color: #121212;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: center;
+  margin: 0;
+  padding: 20px;
+}
+h1 { font-size: 24px; }
+canvas {
+  margin-top: 20px;
+  background-color: #1e1e1e;
+  border-radius: 50%;
+}
+button {
+  background-color: #1d4ed8;
+  color: white;
+  border: none;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  margin: 12px;
+  cursor: pointer;
+}
+button.secondary {
+  background-color: #6b7280;
+}
 </style>
 </head>
 <body>
 
-<h1>NYC Explorer</h1>
+<h1>NYC Explorer Arcade Wheel</h1>
 <canvas id="wheel" width="400" height="400"></canvas>
 <div id="selected" style="margin-top: 20px; font-size: 20px;">Tap "Spin"!</div>
 <button onclick="spinWheel()">Spin</button>
 <button class="secondary" onclick="resetList()">Reset</button>
 
 <script>
-// Full Manhattan neighborhoods
+// Manhattan neighborhoods
 const allNeighborhoods = [
-  "Battery Park", "Battery Park City", "Financial District", "South Street Seaport", "Tribeca",
-  "Civic Center", "Chinatown", "Little Italy", "Lower East Side", "Two Bridges",
-  "Bowery", "NoHo", "Greenwich Village", "West Village", "SoHo", "Nolita", "Flatiron District",
-  "Gramercy", "Union Square", "Kips Bay", "Murray Hill", "Turtle Bay",
-  "Midtown East", "Midtown West", "Hell's Kitchen", "Clinton", "Garment District",
-  "Chelsea", "Meatpacking District", "Hudson Yards",
-  "Upper East Side", "Upper West Side", "Harlem", "East Harlem", "Morningside Heights",
-  "Hamilton Heights", "Manhattanville", "Washington Heights", "Inwood"
+"Battery Park","Battery Park City","Financial District","South Street Seaport","Tribeca",
+"Civic Center","Chinatown","Little Italy","Lower East Side","Two Bridges",
+"Bowery","NoHo","Greenwich Village","West Village","SoHo","Nolita","Flatiron District",
+"Gramercy","Union Square","Kips Bay","Murray Hill","Turtle Bay",
+"Midtown East","Midtown West","Hell's Kitchen","Clinton","Garment District",
+"Chelsea","Meatpacking District","Hudson Yards",
+"Upper East Side","Upper West Side","Harlem","East Harlem","Morningside Heights",
+"Hamilton Heights","Manhattanville","Washington Heights","Inwood"
 ];
 
 // Track visited
@@ -68,26 +66,39 @@ const centerY = canvas.height / 2;
 const radius = 180;
 let rotation = 0;
 
-// Draw the wheel
-function drawWheel() {
+// Draw wheel with highlight on wedge under pointer
+function drawWheel(targetIndex = null) {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   const sliceAngle = (2 * Math.PI) / allNeighborhoods.length;
 
   allNeighborhoods.forEach((n, i) => {
     const start = sliceAngle * i + rotation;
     const end = start + sliceAngle;
+
+    // Highlight if this is the target wedge
+    let isHighlight = targetIndex !== null && i === targetIndex;
     ctx.beginPath();
     ctx.moveTo(centerX, centerY);
-    ctx.arc(centerX, centerY, radius, start, end);
+    ctx.ellipse(centerX, centerY, radius, radius*0.6, 0, start, end);
     ctx.closePath();
 
-    ctx.fillStyle = visited.includes(n) ? '#555' : (i % 2 === 0 ? '#1d4ed8' : '#2563eb');
+    if (visited.includes(n)) {
+      ctx.fillStyle = '#555';
+    } else if (isHighlight) {
+      ctx.fillStyle = '#ffeb3b'; // glow highlight
+      ctx.shadowColor = '#ffff99';
+      ctx.shadowBlur = 20;
+    } else {
+      ctx.fillStyle = (i % 2 === 0 ? '#1d4ed8' : '#2563eb');
+      ctx.shadowBlur = 0;
+    }
     ctx.fill();
 
     // Draw text
     ctx.save();
     ctx.translate(centerX, centerY);
-    ctx.rotate(start + sliceAngle/2);
+    const angle = start + sliceAngle/2;
+    ctx.rotate(angle);
     ctx.textAlign = "right";
     ctx.fillStyle = "#fff";
     ctx.font = "10px sans-serif";
@@ -95,17 +106,18 @@ function drawWheel() {
     ctx.restore();
   });
 
-  // Draw pointer
+  // Draw fixed top pointer (arrow)
+  ctx.shadowBlur = 0;
   ctx.fillStyle = "#ffeb3b";
   ctx.beginPath();
-  ctx.moveTo(centerX, centerY - radius - 10);
-  ctx.lineTo(centerX - 10, centerY - radius + 10);
-  ctx.lineTo(centerX + 10, centerY - radius + 10);
+  ctx.moveTo(centerX, centerY - radius*0.6 - 10);
+  ctx.lineTo(centerX - 10, centerY - radius*0.6 + 10);
+  ctx.lineTo(centerX + 10, centerY - radius*0.6 + 10);
   ctx.closePath();
   ctx.fill();
 }
 
-// Spin logic
+// Spin logic with smooth deceleration
 function spinWheel() {
   const remaining = allNeighborhoods.filter(n => !visited.includes(n));
   if (remaining.length === 0) {
@@ -113,20 +125,23 @@ function spinWheel() {
     return;
   }
 
-  const spins = Math.random() * 5 + 5; // random rotations
   const sliceAngle = (2 * Math.PI) / allNeighborhoods.length;
   const pickedIndex = Math.floor(Math.random() * remaining.length);
+
+  // Calculate rotation so the target wedge lands under pointer
+  const spins = Math.random() * 5 + 5; // 5-10 full spins
   const targetRotation = 2*Math.PI*spins - pickedIndex*sliceAngle;
 
+  const duration = 4000; // 4 seconds
   let start = null;
-  const duration = 2000;
 
   function animate(timestamp) {
     if (!start) start = timestamp;
     const elapsed = timestamp - start;
     const t = Math.min(elapsed / duration, 1);
-    rotation = targetRotation * easeOutCubic(t);
-    drawWheel();
+    // Smooth deceleration (fast at start, slow at end)
+    rotation = targetRotation * easeOutQuart(t);
+    drawWheel(pickedIndex); // highlight target wedge
     if (t < 1) {
       requestAnimationFrame(animate);
     } else {
@@ -134,13 +149,16 @@ function spinWheel() {
       visited.push(chosen);
       localStorage.setItem("visitedNeighborhoods", JSON.stringify(visited));
       document.getElementById("selected").innerText = `Next: ${chosen}`;
+      drawWheel(); // final draw without highlight
     }
   }
   requestAnimationFrame(animate);
 }
 
-// Easing function for smooth spin
-function easeOutCubic(t) { return 1 - Math.pow(1-t,3); }
+// Quartic ease-out for smooth deceleration
+function easeOutQuart(t) {
+  return 1 - Math.pow(1 - t, 4);
+}
 
 function resetList() {
   if (confirm("Reset visited neighborhoods?")) {
