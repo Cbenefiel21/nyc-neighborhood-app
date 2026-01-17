@@ -66,9 +66,10 @@ const centerY = height/2;
 const wheelRadius = 180;
 
 let rotation = 0;
+let spinning = false;
 
 // Draw wheel with back-to-front sorting
-function drawWheel(highlightIndex = null) {
+function drawWheel(highlightFront=false) {
   ctx.clearRect(0,0,width,height);
   const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
 
@@ -81,87 +82,84 @@ function drawWheel(highlightIndex = null) {
     return {name: n, index:i, angle, y, scale, alpha};
   });
 
-  // Sort back-to-front (lowest scale first)
+  // Sort back-to-front
   wedges.sort((a,b)=>a.scale-b.scale);
 
-  // Draw each wedge
   wedges.forEach(w => {
-    if (w.alpha < 0.05) return; // skip back hidden wedges
+    if (w.alpha<0.05) return;
     ctx.save();
     ctx.translate(centerX, centerY + w.y);
-    ctx.scale(w.scale, w.scale);
+    ctx.scale(w.scale,w.scale);
 
     // Fill color
-    let isHighlight = highlightIndex !== null && w.index === highlightIndex;
+    let isFront = highlightFront && Math.abs(Math.sin(w.angle))<0.01;
     let fill;
     if (visited.includes(w.name)) fill = '#555';
-    else if (isHighlight) fill = '#ffeb3b';
-    else fill = (w.index %2===0 ? '#1d4ed8':'#2563eb');
+    else if (isFront) fill = '#ffeb3b';
+    else fill = (w.index%2===0 ? '#1d4ed8':'#2563eb');
 
     ctx.fillStyle = fill;
     ctx.globalAlpha = w.alpha;
     ctx.beginPath();
-    ctx.roundRect(-150, -20, 300, 40, 8);
+    ctx.roundRect(-150,-20,300,40,8);
     ctx.fill();
 
     // Text
-    ctx.fillStyle = '#fff';
-    ctx.font = "14px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(w.name, 0, 0);
+    ctx.fillStyle='#fff';
+    ctx.font="14px sans-serif";
+    ctx.textAlign="center";
+    ctx.textBaseline="middle";
+    ctx.fillText(w.name,0,0);
+
     ctx.restore();
   });
 
   ctx.globalAlpha = 1;
-
-  // Draw side pointer (middle-right)
-  ctx.fillStyle = "#ffeb3b";
+  // Side pointer (middle-right), flipped toward wheel
+  ctx.fillStyle="#ffeb3b";
   ctx.beginPath();
-  ctx.moveTo(width - 10, centerY);
-  ctx.lineTo(width - 30, centerY - 10);
-  ctx.lineTo(width - 30, centerY + 10);
+  ctx.moveTo(width-10, centerY);
+  ctx.lineTo(width+10, centerY-10);
+  ctx.lineTo(width+10, centerY+10);
   ctx.closePath();
   ctx.fill();
 }
 
-// Spin logic
-function spinWheel() {
-  const remaining = allNeighborhoods.filter(n => !visited.includes(n));
-  if (!remaining.length) {
-    document.getElementById("selected").innerText = "You've visited all neighborhoods!";
-    return;
-  }
+// Spin wheel
+function spinWheel(){
+  if(spinning) return;
+  spinning = true;
+  document.getElementById("selected").innerText = "Spinning...";
 
-  const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
-  const pickedIndex = Math.floor(Math.random()*remaining.length);
-
-  // Rotation target: make chosen wedge front-center
-  const spins = Math.random()*5 + 5;
-  const targetRotation = 2*Math.PI*spins - pickedIndex*sliceAngle - Math.PI/2;
-
+  const spins = Math.random()*5+5; // full rotations
+  const totalRotation = 2*Math.PI*spins + Math.random()*2*Math.PI; 
   const duration = 4000;
-  let start = null;
+  let start=null;
 
   function animate(timestamp){
     if(!start) start=timestamp;
     const elapsed = timestamp-start;
     const t = Math.min(elapsed/duration,1);
-    rotation = targetRotation*easeOutQuart(t);
-    drawWheel(pickedIndex);
+    rotation = totalRotation*easeOutQuart(t);
+    drawWheel(false);
     if(t<1) requestAnimationFrame(animate);
     else {
-      const chosen = remaining[pickedIndex];
+      // Pick the front wedge as the selected neighborhood
+      const sliceAngle = (2*Math.PI)/allNeighborhoods.length;
+      let frontIndex = Math.round((-rotation)/sliceAngle) % allNeighborhoods.length;
+      if(frontIndex<0) frontIndex+=allNeighborhoods.length;
+      const chosen = allNeighborhoods[frontIndex];
       visited.push(chosen);
-      localStorage.setItem("visitedNeighborhoods", JSON.stringify(visited));
+      localStorage.setItem("visitedNeighborhoods",JSON.stringify(visited));
+      drawWheel(true); // highlight
       document.getElementById("selected").innerText = `Next: ${chosen}`;
-      drawWheel();
+      spinning=false;
     }
   }
   requestAnimationFrame(animate);
 }
 
-function easeOutQuart(t){ return 1 - Math.pow(1-t,4); }
+function easeOutQuart(t){ return 1-Math.pow(1-t,4); }
 
 function resetList(){
   if(confirm("Reset visited neighborhoods?")){
